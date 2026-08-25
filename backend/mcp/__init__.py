@@ -1,0 +1,1 @@
+# SwiggyPilot mcp package

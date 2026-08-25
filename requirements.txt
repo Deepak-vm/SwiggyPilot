@@ -1,0 +1,11 @@
+langgraph
+langchain-mcp-adapters
+langchain-groq
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+langgraph-checkpoint-postgres
+python-dotenv
+pydantic
+httpx
