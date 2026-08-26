@@ -14,6 +14,11 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 class Base(DeclarativeBase):
     pass
 
+
+engine       = create_engine(os.getenv("DB_URL"), pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+
 def get_db():
     db = SessionLocal()
     try:
