@@ -8,7 +8,7 @@ load_dotenv()
 
 _llm = ChatGroq(model="groq/compound-mini", temperature=0, api_key=os.getenv("GROQ_API_KEY"))
 
-_MENU = """👋 Welcome to SwiggyPilot! What would you like to do?
+_MENU = """ Welcome to SwiggyPilot! What would you like to do?
 
 1️⃣  Food — order food delivery
 2️⃣  Instamart — order groceries
