@@ -1,0 +1,13 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #121110; }
+
+/* Button hover effects — SEND & NEW ORDER: same orange text, no fill */
+.h-new { transition: color 0.18s ease; }
+.h-new:hover:not(:disabled) { color: #FF5A3C !important; }
+
+.h-fill { transition: color 0.18s ease, background 0.18s ease; }
+.h-fill:hover:not(:disabled) { background: #FF5A3C !important; color: #121212 !important; }
+
+/* Row alignment fix: input row and approve row — SAME border color & min-height */
+.bottom-bar  { display: flex; border-top: 1px solid #3A362E; flex-shrink: 0; min-height: 48px; }
+.approve-bar { display: flex; border-top: 1px solid #3A362E; flex-shrink: 0; min-height: 48px; }
