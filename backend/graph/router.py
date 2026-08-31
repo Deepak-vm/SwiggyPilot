@@ -1,12 +1,13 @@
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage
 from backend.graph.state import AgentState
+from backend.graph.llm_config import get_llm
 
 load_dotenv()
 
-_llm = ChatGroq(model="groq/compound-mini", temperature=0, api_key=os.getenv("GROQ_API_KEY"))
+_router_model = os.getenv("ROUTER_MODEL")
+_llm = get_llm(model=_router_model) if _router_model else get_llm()
 
 _MENU = """ Welcome to SwiggyPilot! What would you like to do?
 

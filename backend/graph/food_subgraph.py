@@ -1,17 +1,10 @@
-import os
 import re
-from dotenv import load_dotenv
-# pyrefly: ignore [missing-import]
-from langchain_groq import ChatGroq
 from langchain_core.messages import AIMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import interrupt
 from backend.mcp.swiggy_client import get_tools
 from backend.graph.state import AgentState
-
-load_dotenv()
-
-_llm = ChatGroq(model="openai/gpt-oss-120b", temperature=0, api_key=os.getenv("GROQ_API_KEY"))
+from backend.graph.llm_config import llm as _llm  
 
 _PROMPT = (
     "Help the user order food on Swiggy. "
