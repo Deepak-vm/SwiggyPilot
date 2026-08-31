@@ -2,8 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.postgres import PostgresSaver
-import psycopg
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from backend.graph.state import AgentState
 from backend.graph.router import router_node
@@ -16,10 +15,15 @@ load_dotenv()
 
 def _route(state: AgentState) -> str:
     intent = state.intent if hasattr(state, "intent") else state.get("intent")
-    return intent if intent in {"food", "instamart", "dineout"} else "router"
+    if intent in {"food", "instamart", "dineout"}:
+        return intent
+    if intent == "done":      # router gave up — exit graph
+        return "done"
+    return "router"           # still unclear — keep routing
 
 
-def _build_graph():
+def _build_graph_def() -> StateGraph:
+    """Build the graph definition (without checkpointer — added later)."""
     g = StateGraph(AgentState)
 
     g.add_node("router",             router_node)
@@ -39,6 +43,7 @@ def _build_graph():
         "instamart": "instamart_agent",
         "dineout":   "dineout_agent",
         "router":    "router",
+        "done":      END,        # router exhausted retries → exit
     })
 
     g.add_edge("food_agent",         "food_approval")
@@ -53,21 +58,46 @@ def _build_graph():
     g.add_edge("dineout_approval",   "dineout_book")
     g.add_edge("dineout_book",       END)
 
-    conn         = psycopg.connect(os.getenv("DB_URL"), autocommit=True)
-    checkpointer = PostgresSaver(conn)
-    checkpointer.setup()
-    return g.compile(
+    return g
+
+
+# ── Lazy async graph initialisation ──────────────────────────────────────────
+# We cannot open an async DB connection at module-import time (no running loop),
+# so we initialise once on first request and cache the compiled graph.
+
+_graph = None
+_saver_ctx = None   # holds the async context manager so it isn't GC'd
+_db_url = os.getenv("DB_URL", "")
+
+
+async def get_graph():
+    """Return (and lazily initialise) the compiled async-checkpointed graph."""
+    global _graph, _saver_ctx
+    if _graph is not None:
+        return _graph
+
+    # AsyncPostgresSaver.from_conn_string is an async context manager.
+    # We enter it once and keep the reference alive for the process lifetime.
+    _saver_ctx = AsyncPostgresSaver.from_conn_string(_db_url)
+    checkpointer = await _saver_ctx.__aenter__()
+    await checkpointer.setup()
+
+    _graph = _build_graph_def().compile(
         checkpointer=checkpointer,
         interrupt_before=["food_approval", "instamart_approval", "dineout_approval"],
     )
+    return _graph
 
 
-graph = _build_graph()
+# Keep a synchronous `graph` alias for backward compat with run_agent
+# (used by nothing currently, but preserved for safety)
+graph = None  # will be None until get_graph() is first awaited
 
 
 async def run_agent(message: str, thread_id: str) -> str:
+    g      = await get_graph()
     config = {"configurable": {"thread_id": thread_id}}
-    result = await graph.ainvoke(
+    result = await g.ainvoke(
         {"messages": [HumanMessage(content=message)]},
         config=config,
     )

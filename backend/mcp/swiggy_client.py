@@ -15,7 +15,7 @@ load_dotenv()
 FOOD_URL     = os.getenv("SWIGGY_MCP_FOOD_URL",     "https://mcp.swiggy.com/food")
 IM_URL       = os.getenv("SWIGGY_MCP_INSTAMART_URL", "https://mcp.swiggy.com/im")
 DINEOUT_URL  = os.getenv("SWIGGY_MCP_DINEOUT_URL",   "https://mcp.swiggy.com/dineout")
-REDIRECT_URI = os.getenv("SWIGGY_OAUTH_REDIRECT_URI", "http://localhost:8000/oauth/callback")
+REDIRECT_URI = os.getenv("SWIGGY_OAUTH_REDIRECT_URI", "http://localhost:7999/oauth/callback")
 
 REGISTER_URL = "https://mcp.swiggy.com/auth/register"
 AUTH_URL     = "https://mcp.swiggy.com/auth/authorize"
