@@ -1,13 +1,36 @@
-plan.md
+# Secrets — never commit real credentials
 .env
+
+# Python
 __pycache__/
-*.pyc
-.venv/
-venv/
-node_modules/
-commit.sh
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
 dist/
 build/
+.venv/
+venv/
+*.db
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+
+# Logs & OS artefacts
 *.log
 .DS_Store
-EOF
+Thumbs.db
+
+# Sensitive / dev-only scripts
+commit.sh
+
+# Planning docs (internal)
+plan.md

@@ -140,6 +140,18 @@ def get_client(verticals: list[str] | None = None) -> MultiServerMCPClient:
     return MultiServerMCPClient({k: v for k, v in all_servers.items() if k in selected})
 
 
-async def get_tools(verticals: list[str] | None = None):
-    """Return LangChain-compatible tools for the given verticals."""
-    return await get_client(verticals).get_tools()
+async def get_tools(
+    verticals: list[str] | None = None,
+    allowed_tools: list[str] | None = None,
+) -> list:
+    """Return LangChain-compatible tools for the given verticals.
+
+    Args:
+        verticals:     Which MCP servers to connect to (food / instamart / dineout).
+        allowed_tools: If supplied, only return tools whose name is in this list.
+                       Use this to expose the minimum schemas to each LLM call.
+    """
+    tools = await get_client(verticals).get_tools()
+    if allowed_tools:
+        tools = [t for t in tools if t.name in allowed_tools]
+    return tools

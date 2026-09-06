@@ -8,7 +8,7 @@ from backend.graph.state import AgentState
 from backend.graph.router import router_node
 from backend.graph.food_subgraph import food_agent_node, food_approval_node, food_place_node
 from backend.graph.instamart_subgraph import instamart_agent_node, instamart_approval_node, instamart_place_node
-from backend.graph.dineout_subgraph import dineout_agent_node, dineout_approval_node, dineout_book_node
+from backend.graph.dineout_subgraph import dineout_discovery_node, dineout_approval_node, dineout_book_node
 
 load_dotenv()
 
@@ -26,48 +26,58 @@ def _build_graph_def() -> StateGraph:
     """Build the graph definition (without checkpointer — added later)."""
     g = StateGraph(AgentState)
 
-    g.add_node("router",             router_node)
-    g.add_node("food_agent",         food_agent_node)
-    g.add_node("food_approval",      food_approval_node)
-    g.add_node("food_place",         food_place_node)
-    g.add_node("instamart_agent",    instamart_agent_node)
-    g.add_node("instamart_approval", instamart_approval_node)
-    g.add_node("instamart_place",    instamart_place_node)
-    g.add_node("dineout_agent",      dineout_agent_node)
-    g.add_node("dineout_approval",   dineout_approval_node)
-    g.add_node("dineout_book",       dineout_book_node)
+    # ── Router ────────────────────────────────────────────────────────────────
+    g.add_node("router",              router_node)
 
+    # ── Food: agent (discover+cart in one loop) → approval → place ────────────
+    # Single ReAct agent with 6/14 tools keeps tokens ~3K instead of 8.4K.
+    # Multi-turn conversation (pick restaurant, pick item) stays inside one node.
+    g.add_node("food_agent",          food_agent_node)
+    g.add_node("food_approval",       food_approval_node)
+    g.add_node("food_place",          food_place_node)
+
+    # ── Instamart: agent (search+cart) → approval → place ─────────────────────
+    g.add_node("instamart_agent",     instamart_agent_node)
+    g.add_node("instamart_approval",  instamart_approval_node)
+    g.add_node("instamart_place",     instamart_place_node)
+
+    # ── Dineout: discovery (4 tools) → approval → book (2 tools) ──────────────
+    g.add_node("dineout_discovery",   dineout_discovery_node)
+    g.add_node("dineout_approval",    dineout_approval_node)
+    g.add_node("dineout_book",        dineout_book_node)
+
+    # ── Entry + intent routing ─────────────────────────────────────────────────
     g.set_entry_point("router")
     g.add_conditional_edges("router", _route, {
         "food":      "food_agent",
         "instamart": "instamart_agent",
-        "dineout":   "dineout_agent",
+        "dineout":   "dineout_discovery",
         "router":    "router",
-        "done":      END,        # router exhausted retries → exit
+        "done":      END,
     })
 
-    g.add_edge("food_agent",         "food_approval")
-    g.add_edge("food_approval",      "food_place")
-    g.add_edge("food_place",         END)
+    # ── Food pipeline ──────────────────────────────────────────────────────────
+    g.add_edge("food_agent",    "food_approval")
+    g.add_edge("food_approval", "food_place")
+    g.add_edge("food_place",    END)
 
+    # ── Instamart pipeline ─────────────────────────────────────────────────────
     g.add_edge("instamart_agent",    "instamart_approval")
     g.add_edge("instamart_approval", "instamart_place")
     g.add_edge("instamart_place",    END)
 
-    g.add_edge("dineout_agent",      "dineout_approval")
-    g.add_edge("dineout_approval",   "dineout_book")
-    g.add_edge("dineout_book",       END)
+    # ── Dineout pipeline ───────────────────────────────────────────────────────
+    g.add_edge("dineout_discovery", "dineout_approval")
+    g.add_edge("dineout_approval",  "dineout_book")
+    g.add_edge("dineout_book",      END)
 
     return g
 
 
-# ── Lazy async graph initialisation ──────────────────────────────────────────
-# We cannot open an async DB connection at module-import time (no running loop),
-# so we initialise once on first request and cache the compiled graph.
-
-_graph = None
-_saver_ctx = None   # holds the async context manager so it isn't GC'd
-_db_url = os.getenv("DB_URL", "")
+# ── Lazy async graph initialisation ───────────────────────────────────────────
+_graph     = None
+_saver_ctx = None
+_db_url    = os.getenv("DB_URL", "")
 
 
 async def get_graph():
@@ -76,9 +86,7 @@ async def get_graph():
     if _graph is not None:
         return _graph
 
-    # AsyncPostgresSaver.from_conn_string is an async context manager.
-    # We enter it once and keep the reference alive for the process lifetime.
-    _saver_ctx = AsyncPostgresSaver.from_conn_string(_db_url)
+    _saver_ctx   = AsyncPostgresSaver.from_conn_string(_db_url)
     checkpointer = await _saver_ctx.__aenter__()
     await checkpointer.setup()
 
@@ -89,9 +97,7 @@ async def get_graph():
     return _graph
 
 
-# Keep a synchronous `graph` alias for backward compat with run_agent
-# (used by nothing currently, but preserved for safety)
-graph = None  # will be None until get_graph() is first awaited
+graph = None   # will be None until get_graph() is first awaited
 
 
 async def run_agent(message: str, thread_id: str) -> str:

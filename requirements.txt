@@ -2,6 +2,7 @@ langgraph
 langchain-mcp-adapters
 langchain-groq
 langchain-ollama
+langchain-google-genai
 fastapi
 uvicorn[standard]
 sqlalchemy
