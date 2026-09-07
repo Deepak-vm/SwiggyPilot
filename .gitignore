@@ -29,8 +29,3 @@ build/
 .DS_Store
 Thumbs.db
 
-# Sensitive / dev-only scripts
-commit.sh
-
-# Planning docs (internal)
-plan.md
