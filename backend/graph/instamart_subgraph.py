@@ -5,6 +5,8 @@ from langgraph.types import interrupt
 from backend.mcp.swiggy_client import get_tools
 from backend.graph.state import AgentState
 from backend.graph.llm_config import llm as _llm
+# Fix: strip CDN image URLs + trim history before each LLM call inside ReAct
+from backend.graph.context_utils import trim_hook
 
 # ── Tool groups ────────────────────────────────────────────────────────────────
 _AGENT_TOOLS = [
@@ -70,9 +72,10 @@ def _s(state, key, default=None):
 async def instamart_agent_node(state: AgentState) -> dict:
     messages = _s(state, "messages", [])
     tools    = await get_tools(["instamart"], _AGENT_TOOLS)
-    result   = await create_react_agent(_llm, tools, prompt=_AGENT_PROMPT).ainvoke(
-        {"messages": messages}
-    )
+    result   = await create_react_agent(
+        _llm, tools, prompt=_AGENT_PROMPT,
+        pre_model_hook=trim_hook,   # strips image URLs + trims history to 6 K tok
+    ).ainvoke({"messages": messages})
     new_msgs = result["messages"][len(messages):]
     cart     = next(
         (m.content for m in reversed(new_msgs)
@@ -102,9 +105,10 @@ async def instamart_place_node(state: AgentState) -> dict:
     if approval != "approved":
         return {"messages": [AIMessage(content="Order cancelled.")], "order_status": "declined"}
     tools  = await get_tools(["instamart"], _PLACE_TOOLS)
-    result = await create_react_agent(_llm, tools, prompt=_PLACE_PROMPT).ainvoke(
-        {"messages": messages}
-    )
+    result = await create_react_agent(
+        _llm, tools, prompt=_PLACE_PROMPT,
+        pre_model_hook=trim_hook,   # strips image URLs + trims history to 6 K tok
+    ).ainvoke({"messages": messages})
     new_msgs = result["messages"][len(messages):]
     order_id = None
     for m in reversed(new_msgs):

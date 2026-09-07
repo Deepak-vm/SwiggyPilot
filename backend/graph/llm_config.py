@@ -13,8 +13,8 @@ load_dotenv()
 PROVIDER   = "groq"
 MODEL_NAME = "openai/gpt-oss-20b"
 
-PROVIDER = "gemini"
-MODEL_NAME = "gemini-3-flash-preview"
+# PROVIDER = "gemini"
+# MODEL_NAME = "gemini-3-flash-preview"
 
 
 def get_llm(model: str = MODEL_NAME):

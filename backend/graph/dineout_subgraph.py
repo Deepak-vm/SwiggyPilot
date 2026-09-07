@@ -5,6 +5,8 @@ from langgraph.types import interrupt
 from backend.mcp.swiggy_client import get_tools
 from backend.graph.state import AgentState
 from backend.graph.llm_config import llm as _llm
+# Fix: strip CDN image URLs + trim history before each LLM call inside ReAct
+from backend.graph.context_utils import trim_hook
 
 # ── Tool groups (min schemas per LLM call) ─────────────────────────────────────
 _DISCOVERY_TOOLS = [
@@ -47,9 +49,10 @@ def _s(state, key, default=None):
 async def dineout_discovery_node(state: AgentState) -> dict:
     messages = _s(state, "messages", [])
     tools    = await get_tools(["dineout"], _DISCOVERY_TOOLS)
-    result   = await create_react_agent(_llm, tools, prompt=_DISCOVERY_PROMPT).ainvoke(
-        {"messages": messages}
-    )
+    result   = await create_react_agent(
+        _llm, tools, prompt=_DISCOVERY_PROMPT,
+        pre_model_hook=trim_hook,   # strips image URLs + trims history to 6 K tok
+    ).ainvoke({"messages": messages})
     new_msgs = result["messages"][len(messages):]
     # Extract slot/table summary for the approval prompt
     cart = next(
@@ -84,9 +87,10 @@ async def dineout_book_node(state: AgentState) -> dict:
     if approval != "approved":
         return {"messages": [AIMessage(content="Booking cancelled.")], "order_status": "declined"}
     tools  = await get_tools(["dineout"], _BOOK_TOOLS)
-    result = await create_react_agent(_llm, tools, prompt=_BOOK_PROMPT).ainvoke(
-        {"messages": messages}
-    )
+    result = await create_react_agent(
+        _llm, tools, prompt=_BOOK_PROMPT,
+        pre_model_hook=trim_hook,   # strips image URLs + trims history to 6 K tok
+    ).ainvoke({"messages": messages})
     new_msgs = result["messages"][len(messages):]
     order_id = None
     for m in reversed(new_msgs):
