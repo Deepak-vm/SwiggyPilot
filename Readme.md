@@ -1,10 +1,12 @@
 # SwiggyPilot
 
-**Swiggy Conversational Ordering Agent** — v1.0.0
+**Swiggy Conversational Ordering Agent** — v1.0.0 
 
 A LangGraph-based AI agent that lets you order food, groceries, and book restaurant tables through a single natural-language chat interface — powered by Swiggy's official Builders Club MCP servers (Food, Instamart, Dineout).
 
 Tell it *"order eggs from instamart"* or *"get me biryani from a good place nearby"*, and the agent resolves your address, finds the right product/restaurant, builds the cart, confirms with you, and places the order — with a human-approval checkpoint before anything real happens.
+
+> **v1.0.0 status** — Full ordering conversation (address → restaurants → menu → cart → coupon → checkout) verified end-to-end against live Swiggy MCP, including a confirmed real order placement. Human-in-the-loop gate verified in both directions: APPROVE places the order; DECLINE halts execution before `place_food_order` is called.
 
 ---
 
@@ -188,6 +190,7 @@ SwiggyPilot/
 │   │   ├── state.py             # AgentState schema (TypedDict-style)
 │   │   ├── llm_config.py        # Groq LLM singleton (shared across all nodes)
 │   │   ├── router.py            # Intent classification node
+│   │   ├── context_utils.py     # strip_image_urls() + trim_hook pre_model_hook
 │   │   ├── food_subgraph.py     # Food agent + approval + place nodes
 │   │   ├── instamart_subgraph.py# Instamart agent + approval + place nodes
 │   │   ├── dineout_subgraph.py  # Dineout agent + approval + book nodes
@@ -321,17 +324,34 @@ AGENT: Order placed! Tracking ID: SWG-2024-XXXXX
 - [ ] Online payment via the "Pay with UPI" MCP recipe
 - [ ] "Plan my evening" combined flow (food order + Dineout reservation in one turn)
 - [ ] Evaluation harness: intent-routing accuracy, order-placement success rate
-- [ ] Production access + public demo deployment
-- [ ] Token usage optimisation (trim message history before ReAct loop)
+- [ ] Production access + public demo deployment- [x] Token usage optimisation — image URL stripping + `trim_messages` pre_model_hook (see `context_utils.py`)
+
+## Engineering notes
+
+### Token-budget diagnosis and fix (v1.0.0)
+
+The full ordering conversation (`get_addresses` → `search_restaurants` → `get_restaurant_menu`) runs three tool calls before the LLM builds the cart. Each result lands in history, and Swiggy's menu text embeds a full CDN URL for every item. A raw diagnostic probe was run against live Swiggy MCP to quantify the issue:
+
+| Metric | Before | After | Saved |
+|---|---|---|---|
+| Image URLs in menu text | 45 | 0 | — |
+| Bytes (tool text) | 9,939 | 3,798 | −6,141 B |
+| **Token estimate** | **2,440** | **905** | **−1,535 tokens** |
+
+Fix 1 — `strip_image_urls()` in `context_utils.py` removes all `media-assets.swiggy.com` URLs from `ToolMessage` content before it enters the context window. Zero behaviour change.
+
+Fix 2 — `trim_hook` (`make_trim_hook()`) is wired as `pre_model_hook` on every `create_react_agent` call. It runs inside the ReAct loop, applying `trim_messages(strategy="last", max_tokens=6000)` before each LLM call so history never grows unboundedly across multi-turn conversations.
+
+The menu now uses ~905 tokens (24% of the remaining ~3,692-token budget), leaving comfortable headroom for 3-4 prior conversation turns.
 
 ## Known limitations
 
 - Order placement is irreversible once approved — the `interrupt()` checkpoint is the only safety gate.
 - Intent routing relies on LLM classification and can misroute ambiguous requests (e.g. "get me something to eat"). The router asks for clarification (up to 2 retries) rather than guessing.
-- The full conversation history is passed to every ReAct agent call, which grows the context window with each turn.
-- **Groq free-tier TPM ceiling** — The project runs on Groq's free tier. Swiggy MCP tool schemas are verbose, and a single ReAct agent step (system prompt + tool schemas + message history + tool result) can exceed the free-tier tokens-per-minute limit mid-flow. When this happens the agent receives a rate-limit error and the request fails. Workarounds: use a paid Groq plan, reduce the number of MCP tools loaded per vertical, or trim the message history before each ReAct loop iteration.
-- **Gemini incompatibility** — Gemini was evaluated as an alternative LLM provider but is not supported. Several Swiggy MCP tool schemas use JSON Schema features (e.g. `additionalProperties`, deeply nested `anyOf`/`oneOf`) that Gemini's function-declaration validator rejects at tool-binding time, causing startup errors. Until Swiggy updates its schemas or Gemini relaxes its validation, Groq (or another OpenAI-compatible provider) is required.
+- **COD only** — online payment (UPI / Swiggy Money) is a planned extension.
+- **Groq free-tier TPM ceiling** — The project runs on Groq's free tier. High-traffic bursts can hit the tokens-per-minute limit. Workaround: use a paid Groq plan or switch to another OpenAI-compatible provider.
+- **Gemini incompatibility** — Several Swiggy MCP tool schemas use JSON Schema features (`additionalProperties`, deeply nested `anyOf`/`oneOf`) that Gemini's function-declaration validator rejects at tool-binding time. Groq (or another OpenAI-compatible provider) is required until Swiggy updates its schemas.
 
 ---
 
-*SwiggyPilot v1.0.0 · Built with LangGraph + Swiggy MCP*
+*SwiggyPilot v1.0.0*

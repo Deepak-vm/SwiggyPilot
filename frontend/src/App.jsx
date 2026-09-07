@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 
 const API = "http://localhost:8000";
 const BG = "#121212";
@@ -285,6 +286,34 @@ export default function App() {
         ::-webkit-scrollbar { width:3px; } ::-webkit-scrollbar-thumb { background:${FADE}; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .typing-dot { animation: blink 1s infinite; }
+
+        /* ── Markdown rendering for agent messages ── */
+        .md-body { font-size:14px; line-height:1.6; color:${INK}; }
+        .md-body p  { margin:0 0 6px; }
+        .md-body p:last-child { margin-bottom:0; }
+        .md-body strong { color:${INK}; font-weight:600; }
+        .md-body em     { opacity:0.85; }
+        .md-body hr     { border:none; border-top:1px solid rgba(237,234,224,0.2); margin:8px 0; }
+        .md-body ul, .md-body ol { padding-left:18px; margin:4px 0; }
+        .md-body li { margin:2px 0; }
+        .md-body code {
+          background:rgba(237,234,224,0.1); border-radius:3px;
+          padding:1px 5px; font-size:12px; font-family:monospace;
+        }
+        .md-body pre  { background:rgba(237,234,224,0.08); border-radius:4px; padding:8px 10px; overflow-x:auto; margin:6px 0; }
+        .md-body pre code { background:none; padding:0; }
+        .md-body table {
+          border-collapse:collapse; width:100%; margin:8px 0; font-size:13px;
+        }
+        .md-body th, .md-body td {
+          border:1px solid rgba(237,234,224,0.25);
+          padding:5px 10px; text-align:left;
+        }
+        .md-body th {
+          background:rgba(237,234,224,0.08); font-weight:600;
+          font-size:11px; letter-spacing:0.05em; text-transform:uppercase;
+        }
+        .md-body tr:hover td { background:rgba(237,234,224,0.04); }
       `}</style>
 
 
@@ -332,13 +361,19 @@ export default function App() {
             {messages.map((m, i) => (
               <div key={i} style={{ display: "flex", gap: 12 }}>
                 <span style={{ fontSize: 11, color: FADE, paddingTop: 2, minWidth: 20, flexShrink: 0 }}>{m.n}</span>
-                <div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{
                     fontSize: 10, letterSpacing: "0.08em",
                     color: m.who === "YOU" ? FADE : RED,
-                    marginBottom: 2, fontWeight: 600
+                    marginBottom: 4, fontWeight: 600
                   }}>{m.who}</div>
-                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{m.text}</p>
+                  {m.who === "AGENT" ? (
+                    <div className="md-body">
+                      <ReactMarkdown>{m.text}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{m.text}</p>
+                  )}
                 </div>
               </div>
             ))}

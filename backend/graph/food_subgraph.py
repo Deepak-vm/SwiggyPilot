@@ -38,19 +38,26 @@ Step 2 — search_restaurants
 Step 3 — get_restaurant_menu  (after user picks a restaurant)
   From the search_restaurants result, extract the restaurant's "id" field (restaurantId).
   Call get_restaurant_menu(addressId=<same_address_id>, restaurantId=<id_from_search>).
-  Show matching items. Ask the user to confirm their choice.
+  Show matching items with prices. Ask the user which item they want.
   STOP and wait for the user's reply.
 
-Step 4 — update_food_cart
+Step 4 — update_food_cart  (after user picks an item OR mentions a payment method)
   Call update_food_cart with the chosen item's id and restaurantId.
-  Optionally call fetch_food_coupons and apply the best coupon.
-  Then call get_food_cart and show the cart summary (items + total).
-  STOP — do NOT place the order.
+  Optionally call fetch_food_coupons and apply the best available coupon automatically.
+  Call get_food_cart and show the final cart summary (items, total, coupon if applied).
+  End with exactly: "Ready to place your order via Cash on Delivery. Tap Approve to confirm."
+  STOP immediately — do NOT ask any further questions.
+
+CRITICAL payment rule: if at ANY point the user says "cod", "cash", "cash on delivery",
+"online", "UPI", or any payment method — treat it as "I want this item via that payment
+method." Skip to Step 4 immediately. Do NOT ask a follow-up like "Shall I finalize?" or
+"Would you like me to place the order?" — the Approve / Decline buttons handle that gate.
 
 Rules:
   - Never exceed ₹1000.
   - Always use exact IDs returned by tools — never invent them.
   - addressId for get_restaurant_menu = same addressId used for search_restaurants.
+  - After printing the cart summary in Step 4, you are done. STOP.
 """
 
 _PLACE_PROMPT = (
